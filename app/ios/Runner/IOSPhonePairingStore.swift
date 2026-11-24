@@ -3,11 +3,12 @@ import Security
 import CryptoKit
 
 enum IOSPhonePairingError: Error {
-  case invalid, tooLarge, missing, unavailable, storage, superseded
+  case invalid, tooLarge, missing, unavailable, storage, superseded, lockdownFormat
 
   var code: String {
     switch self {
     case .invalid: return "ERR_PHONE_PAIRING_INVALID"
+    case .lockdownFormat: return "ERR_PHONE_PAIRING_LOCKDOWN_FORMAT"
     case .tooLarge: return "ERR_PHONE_PAIRING_TOO_LARGE"
     case .missing: return "ERR_PHONE_PAIRING_REQUIRED"
     case .unavailable: return "ERR_PHONE_PAIRING_LOCKED"
@@ -25,7 +26,11 @@ enum IOSPhonePairingRecord {
   static func normalized(_ data: Data) throws -> Data {
     guard !data.isEmpty, data.count <= maximumBytes else { throw IOSPhonePairingError.tooLarge }
     guard let value = try? PropertyListSerialization.propertyList(from: data, options: [], format: nil),
-      let dictionary = value as? [String: Any],
+      let dictionary = value as? [String: Any] else { throw IOSPhonePairingError.invalid }
+    if dictionary["HostID"] != nil || dictionary["HostCertificate"] != nil || dictionary["DeviceCertificate"] != nil {
+      throw IOSPhonePairingError.lockdownFormat
+    }
+    guard
       let privateKey = dictionary["private_key"] as? Data, privateKey.count == 32,
       let publicKey = dictionary["public_key"] as? Data, publicKey.count == 32,
       let identifier = dictionary["identifier"] as? String,

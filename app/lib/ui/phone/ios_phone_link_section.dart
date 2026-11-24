@@ -21,6 +21,7 @@ import 'phone_widgets.dart';
 String phoneLinkFailureText(L10n l10n, String code) => switch (code) {
   'ERR_PHONE_BUSY' => l10n.iosPhoneLinkErrorBusy,
   'ERR_PHONE_FOREGROUND_REQUIRED' || 'ERR_PHONE_CLIPBOARD_FOREGROUND_REQUIRED' => l10n.iosPhoneLinkErrorForeground,
+  'ERR_PHONE_PAIRING_LOCKDOWN_FORMAT' => l10n.iosPhoneLinkErrorPairingLockdown,
   'ERR_PHONE_PAIRING_INVALID' || 'ERR_PHONE_PAIRING_TOO_LARGE' => l10n.iosPhoneLinkErrorPairingInvalid,
   'ERR_PHONE_PAIRING_STORAGE' => l10n.iosPhoneLinkErrorStorage,
   'ERR_PHONE_PAIRING_LOCKED' => l10n.iosPhoneLinkPairingLocked,

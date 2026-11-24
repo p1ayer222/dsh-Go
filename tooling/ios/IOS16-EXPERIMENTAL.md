@@ -20,7 +20,7 @@
 
 | 项 | 说明 |
 |---|---|
-| **Remote Pairing 生成** | 上游 `PAIRING-WINDOWS.md` 写明 USB Remote Pairing 下限约 **iOS 17.4**。16.6.1 上**可能没有**官方文档化的 RP 导出路径；须自备已有效的 RP plist 或等上游方案。 |
+| **Remote Pairing 生成** | idevice_pair **Lockdown ≠ DSH 可导入**。16.x 推荐 **pymobiledevice3**：`lockdown pair` → `remote pair` → 导入 `remote_*.plist`。见 [phone-control/PAIRING-IOS16.md](phone-control/PAIRING-IOS16.md)。17.4+ 仍可用 idevice_pair Remote pairing。 |
 | **PhoneRunner 宿主** | 新版 Xcode 预编译 XCTRunner 宿主常为 **iOS 17+**。16 上需参考 [OpenMinis/iCTRL PR #15](https://github.com/OpenMinis/iCTRL/pull/15)：**从源码编 arm64 宿主**，`IPHONEOS_DEPLOYMENT_TARGET` / Mach-O 与嵌套 `.xctest` 版本一致（勿只改 plist）。用 `tooling/ios/prepare-phone-self-runner.sh` 在 **真机 16.x** 上安装已签名 helper。 |
 | **DDI** | 须与 **board/chip + 16.x** 匹配的 Personalized 镜像；App 内「准备」仍走固定 catalog，**不保证**每一台 16.x 都能自动挂载成功。可先在 Mac 上手动挂好 DDI 再测。 |
 | **CoreDevice 读屏** | 完整 CoreDevice 能力仍建议 **17.4+**；16.x 目标以 **XCTest 增强**为主，不承诺与 17 同能力。 |

@@ -44,7 +44,6 @@ jobs:
       FLUTTER_VERSION: 3.47.7
       # Intel macOS SDK (macos-15-intel runner); arm64 hash is dd9da574...
       FLUTTER_SHA256: 17d39b000a5d0681e3f7b61a105a36f6f31dd41ab9073f625fd466f38035f901
-      ENGINE_INPUTS_KEY: ${{ hashFiles('tooling/ios/prepare-engine.sh', 'runtime/locks/**', 'runtime/ohos/package/composition.json') }}
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
         with:
@@ -108,14 +107,14 @@ jobs:
         uses: actions/cache/restore@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
         with:
           path: ${{ github.workspace }}/../engine-work
-          key: ${{ runner.os }}-${{ runner.arch }}-engine-work-${{ env.ENGINE_INPUTS_KEY }}
+          key: ${{ runner.os }}-${{ runner.arch }}-engine-work-${{ hashFiles('tooling/ios/prepare-engine.sh', 'runtime/locks/**', 'runtime/ohos/package/composition.json') }}
 
       - name: Restore prepared Engine tree
         id: engine-staged
         uses: actions/cache/restore@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
         with:
           path: app/ios/Engine
-          key: ${{ runner.os }}-${{ runner.arch }}-ios-engine-${{ env.ENGINE_INPUTS_KEY }}
+          key: ${{ runner.os }}-${{ runner.arch }}-ios-engine-${{ hashFiles('tooling/ios/prepare-engine.sh', 'runtime/locks/**', 'runtime/ohos/package/composition.json') }}
 
       - name: Prepare the engine
         id: prepare

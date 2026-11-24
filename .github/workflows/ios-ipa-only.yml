@@ -1,4 +1,4 @@
-# Unsigned IPA only — skip simulator/engine regression (p1ayer222 fork).
+# Unsigned IPA only (p1ayer222 fork). Build & tests on Actions — not on dev machines.
 name: iOS unsigned IPA only
 
 on:
@@ -18,7 +18,21 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
+  phone-protocol:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 25
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+        with:
+          persist-credentials: false
+      - name: Phone native compile check (no Xcode)
+        run: |
+          bash tooling/ios/build-phone-self-runner.sh --check
+          python3 tooling/ios/tests/phone-self-runner.test.py -v
+          python3 -B tooling/ios/test-channel-contract.py -v
+
   ipa:
+    needs: phone-protocol
     runs-on: macos-26
     timeout-minutes: 120
     env:

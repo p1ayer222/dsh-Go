@@ -2,6 +2,14 @@
 
 面向 [#1887](https://github.com/ccch1mneyyy/dsh-Go/issues/1887)：**iPhone / iPad OS 16.x**（含 **16.6.1**）上尝试 XCTest 自运行路线。
 
+## 开发方式（本 fork）
+
+- **本机**：只改代码、提交推送；不在这边跑 `cargo` / `xcodebuild` / `flutter build`。
+- **CI**：推送到 `ios/**` 后由 GitHub Actions 完成校验与打包：
+  - `phone-protocol`（ubuntu）：`build-phone-self-runner.sh --check`、协议测试
+  - `ipa`（macos）：`check-archive.sh` → artifact **`ios-unsigned-ipa`** / `DSH-Go-unsigned.ipa`
+- 手动触发：**Actions → “iOS unsigned IPA only” → Run workflow**，分支选 `ios/ios16-phone-control`。
+
 ## 本 fork 相对上游改了什么
 
 - Swift：`buildAvailable` / 原生 client 门槛 **16.0+**（此前人为锁 17）。

@@ -36,10 +36,15 @@ jobs:
     # GitHub macOS arm64 pool often cancels at ~15m without a runner; intel label is a common workaround.
     runs-on: macos-15-intel
     timeout-minutes: 180
+    defaults:
+      run:
+        shell: bash
     env:
+      DSH_IOS_ENGINE_WORK: ${{ github.workspace }}/../engine-work
       FLUTTER_VERSION: 3.47.7
       # Intel macOS SDK (macos-15-intel runner); arm64 hash is dd9da574...
       FLUTTER_SHA256: 17d39b000a5d0681e3f7b61a105a36f6f31dd41ab9073f625fd466f38035f901
+      ENGINE_INPUTS_KEY: ${{ hashFiles('tooling/ios/prepare-engine.sh', 'runtime/locks/**', 'runtime/ohos/package/composition.json') }}
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
         with:
@@ -51,22 +56,70 @@ jobs:
           xcodebuild -version
           xcodebuild -showsdks | grep -i iphone || true
 
-      - name: Install Flutter
+      # --- Flutter SDK (skip multi-minute download on cache hit) ---
+      - name: Restore Flutter SDK
+        id: flutter-sdk
+        uses: actions/cache/restore@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: ${{ runner.temp }}/flutter
+          key: ${{ runner.os }}-${{ runner.arch }}-flutter-${{ env.FLUTTER_VERSION }}-${{ env.FLUTTER_SHA256 }}
+
+      - name: Install Flutter SDK
+        if: steps.flutter-sdk.outputs.cache-hit != 'true'
         run: |
           archive="flutter_macos_${FLUTTER_VERSION}-stable.zip"
           curl -fsSL -o "$RUNNER_TEMP/$archive" \
             "https://storage.googleapis.com/flutter_infra_release/releases/stable/macos/$archive"
           echo "$FLUTTER_SHA256  $RUNNER_TEMP/$archive" | shasum -a 256 -c -
           unzip -q "$RUNNER_TEMP/$archive" -x 'flutter/bin/cache/artifacts/engine/android-*/*' -d "$RUNNER_TEMP"
-          echo "$RUNNER_TEMP/flutter/bin" >> "$GITHUB_PATH"
 
-      - name: Resolve Flutter dependencies
-        run: |
-          flutter --version
-          python3 app/tool/l10n_merge.py --no-gen
-          cd app && flutter pub get --enforce-lockfile && flutter gen-l10n
+      - name: Save Flutter SDK
+        if: steps.flutter-sdk.outputs.cache-hit != 'true'
+        uses: actions/cache/save@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: ${{ runner.temp }}/flutter
+          key: ${{ steps.flutter-sdk.outputs.cache-primary-key }}
+
+      - name: Add Flutter to PATH
+        run: echo "$RUNNER_TEMP/flutter/bin" >> "$GITHUB_PATH"
+
+      - name: Restore Dart pub cache
+        id: pub-cache
+        uses: actions/cache/restore@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: |
+            ~/.pub-cache
+            app/.dart_tool
+          key: ${{ runner.os }}-${{ runner.arch }}-pub-${{ hashFiles('app/pubspec.lock', 'packages/**/pubspec.lock') }}
+
+      - name: Restore the phone runner library
+        id: phone-runner
+        uses: actions/cache/restore@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: app/ios/PhoneSelfRunnerNative
+          key: ${{ runner.os }}-${{ runner.arch }}-phone-runner-${{ hashFiles('tooling/ios/phone-self-runner/**', 'tooling/ios/build-phone-self-runner.sh', 'LICENSE') }}
+
+      - name: Use the restored phone runner library
+        if: steps.phone-runner.outputs.cache-hit == 'true'
+        run: echo "DSH_PHONE_SELF_RUNNER_RESTORED=1" >> "$GITHUB_ENV"
+
+      - name: Restore engine preparation downloads
+        id: engine-work
+        uses: actions/cache/restore@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: ${{ github.workspace }}/../engine-work
+          key: ${{ runner.os }}-${{ runner.arch }}-engine-work-${{ env.ENGINE_INPUTS_KEY }}
+
+      - name: Restore prepared Engine tree
+        id: engine-staged
+        uses: actions/cache/restore@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: app/ios/Engine
+          key: ${{ runner.os }}-${{ runner.arch }}-ios-engine-${{ env.ENGINE_INPUTS_KEY }}
 
       - name: Prepare the engine
+        id: prepare
+        if: steps.engine-staged.outputs.cache-hit != 'true'
         run: |
           log="$(mktemp)"
           if ! bash tooling/ios/prepare-engine.sh 2>&1 | tee "$log"; then
@@ -75,18 +128,125 @@ jobs:
           fi
           test -f app/ios/Engine/.ready
 
+      - name: Save engine preparation downloads
+        if: steps.engine-work.outputs.cache-hit != 'true' && steps.prepare.outcome == 'success'
+        uses: actions/cache/save@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: ${{ github.workspace }}/../engine-work
+          key: ${{ steps.engine-work.outputs.cache-primary-key }}
+
+      - name: Save prepared Engine tree
+        if: steps.engine-staged.outputs.cache-hit != 'true' && steps.prepare.outcome == 'success'
+        uses: actions/cache/save@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: app/ios/Engine
+          key: ${{ steps.engine-staged.outputs.cache-primary-key }}
+
+      - name: Verify Engine is ready
+        run: test -f app/ios/Engine/.ready
+
+      - name: Resolve Flutter dependencies
+        run: |
+          flutter --version
+          python3 app/tool/l10n_merge.py --no-gen
+          cd app && flutter pub get --enforce-lockfile && flutter gen-l10n
+
+      - name: Save Dart pub cache
+        if: steps.pub-cache.outputs.cache-hit != 'true'
+        uses: actions/cache/save@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: |
+            ~/.pub-cache
+            app/.dart_tool
+          key: ${{ steps.pub-cache.outputs.cache-primary-key }}
+
+      - name: Restore Homebrew download cache
+        id: brew-cache
+        uses: actions/cache/restore@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: |
+            ~/Library/Caches/Homebrew
+            ~/Library/Logs/Homebrew
+          key: ${{ runner.os }}-brew-llvm-lld-v1
+
+      - name: Restore iSH Python tooling venv
+        id: ish-tools-cache
+        uses: actions/cache/restore@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: ${{ runner.temp }}/ish-tools
+          key: ${{ runner.os }}-ish-tools-meson-1.7.2-ninja-1.11.1.4
+
       - name: Install the iSH build tools
         run: |
+          export HOMEBREW_NO_AUTO_UPDATE=1
           brew install llvm lld
-          python3 -m venv "$RUNNER_TEMP/ish-tools"
-          "$RUNNER_TEMP/ish-tools/bin/pip" install meson==1.7.2 ninja==1.11.1.4
+          if [ ! -x "$RUNNER_TEMP/ish-tools/bin/ninja" ]; then
+            python3 -m venv "$RUNNER_TEMP/ish-tools"
+            "$RUNNER_TEMP/ish-tools/bin/pip" install meson==1.7.2 ninja==1.11.1.4
+          fi
           echo "$RUNNER_TEMP/ish-tools/bin" >> "$GITHUB_PATH"
           echo "$(brew --prefix llvm)/bin" >> "$GITHUB_PATH"
           echo "$(brew --prefix lld)/bin" >> "$GITHUB_PATH"
           PATH="$(brew --prefix lld)/bin:$PATH" ld.lld --version
 
+      - name: Save Homebrew download cache
+        if: steps.brew-cache.outputs.cache-hit != 'true'
+        uses: actions/cache/save@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: |
+            ~/Library/Caches/Homebrew
+            ~/Library/Logs/Homebrew
+          key: ${{ steps.brew-cache.outputs.cache-primary-key }}
+
+      - name: Save iSH Python tooling venv
+        if: steps.ish-tools-cache.outputs.cache-hit != 'true'
+        uses: actions/cache/save@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: ${{ runner.temp }}/ish-tools
+          key: ${{ steps.ish-tools-cache.outputs.cache-primary-key }}
+
+      - name: Identify the pinned iSH build inputs
+        id: ish-inputs
+        run: |
+          device="$(bash tooling/ios/build-ish.sh --cache-key iphoneos)"
+          key="$(printf '%s\n' "$device" | shasum -a 256 | cut -d' ' -f1)"
+          echo "key=$key" >> "$GITHUB_OUTPUT"
+
+      - name: Restore device iSH guest build
+        id: ish-cache
+        uses: actions/cache/restore@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: |
+            app/ios/Engine/ish-cache
+            app/ios/Engine/build/iphoneos/guest
+          key: ${{ runner.os }}-ish-device-${{ steps.ish-inputs.outputs.key }}
+
       - name: Archive unsigned IPA
+        id: archive
         run: bash tooling/ios/check-archive.sh
+
+      - name: Save device iSH guest build
+        if: steps.ish-cache.outputs.cache-hit != 'true'
+        uses: actions/cache/save@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: |
+            app/ios/Engine/ish-cache
+            app/ios/Engine/build/iphoneos/guest
+          key: ${{ steps.ish-cache.outputs.cache-primary-key }}
+
+      - name: Save engine preparation downloads (post-build)
+        if: steps.engine-work.outputs.cache-hit != 'true'
+        uses: actions/cache/save@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: ${{ github.workspace }}/../engine-work
+          key: ${{ steps.engine-work.outputs.cache-primary-key }}
+
+      - name: Save the phone runner library
+        if: steps.phone-runner.outputs.cache-hit != 'true'
+        uses: actions/cache/save@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: app/ios/PhoneSelfRunnerNative
+          key: ${{ steps.phone-runner.outputs.cache-primary-key }}
 
       - name: Upload IPA
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02

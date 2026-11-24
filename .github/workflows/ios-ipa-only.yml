@@ -66,6 +66,25 @@ jobs:
           python3 app/tool/l10n_merge.py --no-gen
           cd app && flutter pub get --enforce-lockfile && flutter gen-l10n
 
+      - name: Prepare the engine
+        run: |
+          log="$(mktemp)"
+          if ! bash tooling/ios/prepare-engine.sh 2>&1 | tee "$log"; then
+            tail -n 8 "$log" | cut -c1-600 | sed -e 's/%/%25/g' -e 's/^/::error title=prepare-engine::/'
+            exit 1
+          fi
+          test -f app/ios/Engine/.ready
+
+      - name: Install the iSH build tools
+        run: |
+          brew install llvm lld
+          python3 -m venv "$RUNNER_TEMP/ish-tools"
+          "$RUNNER_TEMP/ish-tools/bin/pip" install meson==1.7.2 ninja==1.11.1.4
+          echo "$RUNNER_TEMP/ish-tools/bin" >> "$GITHUB_PATH"
+          echo "$(brew --prefix llvm)/bin" >> "$GITHUB_PATH"
+          echo "$(brew --prefix lld)/bin" >> "$GITHUB_PATH"
+          PATH="$(brew --prefix lld)/bin:$PATH" ld.lld --version
+
       - name: Archive unsigned IPA
         run: bash tooling/ios/check-archive.sh
 

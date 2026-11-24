@@ -38,7 +38,8 @@ jobs:
     timeout-minutes: 180
     env:
       FLUTTER_VERSION: 3.47.7
-      FLUTTER_SHA256: dd9da574c3168460550117eb0e8dd0313ae934fabf64a82a6d557fff5fd1422e
+      # Intel macOS SDK (macos-15-intel runner); arm64 hash is dd9da574...
+      FLUTTER_SHA256: 17d39b000a5d0681e3f7b61a105a36f6f31dd41ab9073f625fd466f38035f901
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
         with:
@@ -52,12 +53,15 @@ jobs:
 
       - name: Install Flutter
         run: |
-          archive="flutter_macos_arm64_${FLUTTER_VERSION}-stable.zip"
+          archive="flutter_macos_${FLUTTER_VERSION}-stable.zip"
           curl -fsSL -o "$RUNNER_TEMP/$archive" \
             "https://storage.googleapis.com/flutter_infra_release/releases/stable/macos/$archive"
           echo "$FLUTTER_SHA256  $RUNNER_TEMP/$archive" | shasum -a 256 -c -
           unzip -q "$RUNNER_TEMP/$archive" -x 'flutter/bin/cache/artifacts/engine/android-*/*' -d "$RUNNER_TEMP"
           echo "$RUNNER_TEMP/flutter/bin" >> "$GITHUB_PATH"
+
+      - name: Resolve Flutter dependencies
+        run: |
           flutter --version
           python3 app/tool/l10n_merge.py --no-gen
           cd app && flutter pub get --enforce-lockfile && flutter gen-l10n

@@ -33,16 +33,22 @@ jobs:
 
   ipa:
     needs: phone-protocol
-    runs-on: macos-26
-    timeout-minutes: 120
+    # macos-26 runners often fail to acquire (capacity); macos-15 is the upstream compile target family.
+    runs-on: macos-15
+    timeout-minutes: 180
     env:
-      DEVELOPER_DIR: /Applications/Xcode_26.6.app/Contents/Developer
       FLUTTER_VERSION: 3.47.7
       FLUTTER_SHA256: dd9da574c3168460550117eb0e8dd0313ae934fabf64a82a6d557fff5fd1422e
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
         with:
           persist-credentials: false
+
+      - name: Show the toolchain
+        run: |
+          sw_vers
+          xcodebuild -version
+          xcodebuild -showsdks | grep -i iphone || true
 
       - name: Install Flutter
         run: |

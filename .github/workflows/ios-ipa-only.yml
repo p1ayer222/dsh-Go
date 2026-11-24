@@ -33,8 +33,8 @@ jobs:
 
   ipa:
     needs: phone-protocol
-    # macos-26 runners often fail to acquire (capacity); macos-15 is the upstream compile target family.
-    runs-on: macos-15
+    # GitHub macOS arm64 pool often cancels at ~15m without a runner; intel label is a common workaround.
+    runs-on: macos-15-intel
     timeout-minutes: 180
     env:
       FLUTTER_VERSION: 3.47.7

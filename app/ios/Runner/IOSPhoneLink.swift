@@ -69,7 +69,7 @@ final class IOSPhoneLink: NSObject, FlutterStreamHandler, @preconcurrency UIDocu
 
   func status() -> [String: Any] {
     let available: Bool
-    if #available(iOS 17.0, *) { available = core.isAvailable } else { available = false }
+    if #available(iOS 16.0, *) { available = core.isAvailable } else { available = false }
     return [
       "schema": 1, "enabled": enabled, "buildAvailable": available,
       "defaultBackend": "coredevice", "xctestEnabled": xctestEnabled, "appRoutes": appRoutes,

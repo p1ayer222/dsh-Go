@@ -43,7 +43,7 @@
   "iosLinuxErrorBusy": "Linux 环境还在使用。等命令停下再试，不行就重新打开 App。",
   "iosPhoneLinkTitle": "本机连接",
   "iosPhoneLinkIntro": "用这台 iPhone 自己的开发者服务读屏、点按和输入，不用一直连着电脑。先打开开发者模式，并确认用于本机连接的 LocalDevVPN 已接通。每个任务首次授权一次，最多 30 分钟，可随时暂停。",
-  "iosPhoneLinkUnavailable": "需要 iOS 17 或更高版本。",
+  "iosPhoneLinkUnavailable": "需要 iOS 16 或更高版本。",
   "iosPhoneLinkStepPairing": "导入配对凭据",
   "iosPhoneLinkPairingHint": "用 Mac 或 Windows 电脑生成的远程配对文件（.plist）",
   "iosPhoneLinkPairingDevice": "已记住在这台手机上",

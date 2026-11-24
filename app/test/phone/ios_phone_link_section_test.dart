@@ -127,7 +127,7 @@ void main() {
   testWidgets('an older iOS says what it needs and offers nothing else', (tester) async {
     link = _Link(_status(available: false));
     await show(tester);
-    expect(find.text('需要 iOS 17 或更高版本。'), findsOneWidget);
+    expect(find.text('需要 iOS 16 或更高版本。'), findsOneWidget);
     expect(find.text('导入配对凭据'), findsNothing);
     expect(find.text('XCTest 增强'), findsNothing);
   }, variant: ios);

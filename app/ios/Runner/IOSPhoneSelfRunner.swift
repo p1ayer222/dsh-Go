@@ -352,7 +352,7 @@ final class IOSPhoneSelfRunner {
 
   private static func makeNativeClient() -> NativeClient? {
     #if DSH_PHONE_SELF_RUNNER
-    guard #available(iOS 17.0, *) else { return nil }
+    guard #available(iOS 16.0, *) else { return nil }
     return NativeClient(start: { runId, config, pairing, sink in
       nativeCallbacks[runId] = sink
       let handle: UInt64

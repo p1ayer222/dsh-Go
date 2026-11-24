@@ -54,7 +54,7 @@ final class PhoneLinkStatus {
   /// The XCTest enhancement, a separate switch.
   final bool xctestEnabled;
 
-  /// This build has the native side and the phone runs iOS 17 or later. Not a connection.
+  /// This build has the native side and the phone runs iOS 16 or later. Not a connection.
   final bool buildAvailable;
 
   /// A record is there to use. Not that pairing has been verified.

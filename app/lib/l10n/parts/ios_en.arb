@@ -43,7 +43,7 @@
   "iosLinuxErrorBusy": "Linux is still in use. Try again once the command stops, or reopen the app.",
   "iosPhoneLinkTitle": "On-device connection",
   "iosPhoneLinkIntro": "Reads the screen, taps and types through this iPhone's own developer services, without staying connected to a computer. Turn on Developer Mode and confirm that LocalDevVPN, used for this local connection, is connected. Approve each task once for up to 30 minutes; pause it at any time.",
-  "iosPhoneLinkUnavailable": "Needs iOS 17 or later.",
+  "iosPhoneLinkUnavailable": "Needs iOS 16 or later.",
   "iosPhoneLinkStepPairing": "Import a pairing record",
   "iosPhoneLinkPairingHint": "A remote pairing file (.plist) made on a Mac or Windows computer",
   "iosPhoneLinkPairingDevice": "Kept on this phone",

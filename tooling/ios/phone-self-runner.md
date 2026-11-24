@@ -4,7 +4,7 @@
 
 ## 当前边界
 
-- 需要 iOS 17+、开发者模式、兼容的 RP 配对记录、LocalDevVPN 回环，以及已经签名安装的 PhoneRunner。
+- 需要 iOS 16+（完整 CoreDevice 能力仍建议 iOS 17.4+）、开发者模式、兼容的 RP 配对记录、LocalDevVPN 回环，以及已经签名安装的 PhoneRunner。
 - **匹配的开发者镜像（DDI）必须已经挂载。** 本版没有自动下载、个性化或挂载 DDI；设备重启后可能需要重新准备。不能宣传“一次 Mac，永久脱离”。
 - 这是侧载/开发实验，不是 App Store 能力。没有在本轮环境进行 Apple SDK 编译、iPhone 真机或时延测试；Rust/Linux 测试不代表设备可用。
 - 默认 iOS 构建不需要 Rust 或新的原生库。只有显式运行可选构建脚本并生成本地 xcconfig 后才启用；删除生成的 xcconfig 即停用。

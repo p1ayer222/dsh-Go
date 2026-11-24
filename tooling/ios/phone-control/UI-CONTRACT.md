@@ -43,7 +43,7 @@
 | --- | --- |
 | `schema` | `1` |
 | `enabled`, `xctestEnabled` | 两个独立持久化开关；保存了凭据不等于开启 |
-| `buildAvailable` | 当前构建包含 native 实现，且系统至少 iOS 17；不是连接成功 |
+| `buildAvailable` | 当前构建包含 native 实现，且系统至少 iOS 16；不是连接成功 |
 | `defaultBackend` | 固定 `coredevice`；不提供给模型选择后端的参数 |
 | `appRoutes` | 包名到 `coredevice` / `xctest` 的 map；默认无规则 |
 | `pairing.present` | 保存状态查询发现记录；不保证此刻能读取／校验，也不表示 pair-verify 成功 |

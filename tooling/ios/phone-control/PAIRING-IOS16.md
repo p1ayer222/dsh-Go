@@ -21,14 +21,20 @@ Apple 自 **iOS 16.0** 起在 USB 上会多一个连到 `remoted` 的链路；`p
 ### 推荐命令（实机 16.x，USB）
 
 ```bash
-# 1) 经典 lockdown 配对（若本机还没有 pair record）
+# 1) USB lockdown 信任（必须先成功；失败时不要跑 remote pair）
 python3 -m pymobiledevice3 lockdown pair
+# Windows 若 SavePairRecord Number:183：装/重装 Apple 移动设备支持，换线/USB口，设置→还原→还原位置与隐私 后重插再信；或用 3uTools/iTunes 先配对一次。
 
-# 2) 通过 remoted 做 Remote Pairing（会写 ~/.pymobiledevice3/remote_<id>.plist）
-python3 -m pymobiledevice3 remote pair
+# 2) iOS 16 在 USB 上生成 RP（不要用 bare `remote pair`，那是 Bonjour/Apple TV）
+python3 -m pymobiledevice3 lockdown remotepairing --pair
+# 或（需已 lockdown paired + 开发者模式）：USB 虚拟网卡出现后
+python3 -m pymobiledevice3 bonjour rsd
+# 再查 ~/.pymobiledevice3/ 或文档中的 remote_<udid>.plist
 ```
 
-把生成的 `remote_*.plist` 拷到 iPhone「文件」能打开的位置，在 DSH → 本机连接 → **导入配对凭据** 中选择该文件（不要选 Lockdown 导出的 plist）。
+把生成的 `remote_*.plist` 拷到 iPhone「文件」能打开的位置（**扩展名必须是 `.plist`**；微信里请用「用其他应用打开 → 存储到“文件”」），在 DSH → 本机连接 → **导入配对凭据** 中选「记住」后再点文件。
+
+**若点文件没反应**：先确认 plist 含 `identifier`、`public_key`、`private_key`（pymobiledevice3 `lockdown remotepairing --pair` 完整跑完）；文件名带 `.plist`；不要从「预览」里点，改走「文件」App 里选；重装/更新 DSH 后 `asCopy` 导入已修复微信来源不可选问题。
 
 ### iOS 17.4+ 的更简单 USB 路线（对照）
 

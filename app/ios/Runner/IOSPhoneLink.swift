@@ -282,10 +282,35 @@ final class IOSPhoneLink: NSObject, FlutterStreamHandler, @preconcurrency UIDocu
     }
   }
 
+  private func flutterRootViewController() -> UIViewController? {
+    let scenes = UIApplication.shared.connectedScenes.compactMap { $0 as? UIWindowScene }
+    let scene = scenes.first { $0.activationState == .foregroundActive } ?? scenes.first
+    return scene?.windows.first { $0.isKeyWindow }?.rootViewController
+  }
+
+  private func pairingPickerHost() -> UIViewController? {
+    guard let root = flutterRootViewController(), root.viewIfLoaded?.window != nil else { return nil }
+    if presenter() is UIAlertController { return root }
+    guard let top = presenter(), top.viewIfLoaded?.window != nil, top.presentedViewController == nil else { return root }
+    return top
+  }
+
+  private func waitUntilAlertDismissed() async {
+    for _ in 0..<60 {
+      guard foreground else { return }
+      if !(presenter() is UIAlertController) { return }
+      try? await Task.sleep(nanoseconds: 50_000_000)
+    }
+  }
+
   private func pickPairing() async -> URL? {
-    guard foreground, let host = presenter(), host.viewIfLoaded?.window != nil, host.presentedViewController == nil else { return nil }
+    guard foreground else { return nil }
+    await waitUntilAlertDismissed()
+    guard let host = pairingPickerHost(), host.presentedViewController == nil else { return nil }
+    var types: [UTType] = [.propertyList, .data, .item]
+    if let plist = UTType(filenameExtension: "plist") { types.append(plist) }
     return await withCheckedContinuation { continuation in
-      let picker = UIDocumentPickerViewController(forOpeningContentTypes: [.propertyList, .data], asCopy: false)
+      let picker = UIDocumentPickerViewController(forOpeningContentTypes: types, asCopy: true)
       picker.allowsMultipleSelection = false; picker.delegate = self
       pickedFile = continuation; modal = picker
       host.present(picker, animated: true)

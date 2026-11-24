@@ -188,7 +188,7 @@ fn major_version(value: &str) -> Option<u32> {
     if parts.is_empty() || parts.len() > 3 || parts.iter().any(|s| s.is_empty() || !s.bytes().all(|c| c.is_ascii_digit())) {
         return None;
     }
-    parts[0].parse().ok().filter(|major| *major >= 17 && *major < 100)
+    parts[0].parse().ok().filter(|major| *major >= 16 && *major < 100)
 }
 fn choose(major: u32, features: Option<&[String]>) -> Variant {
     // pymobiledevice3 776d601's conservative auto policy is 27.0, not the
@@ -312,7 +312,8 @@ mod tests {
         assert_eq!(choose(27, Some(&features)), Variant::Cryptex);
         assert_eq!(choose(27, None), Variant::Personalized);
         assert_eq!(choose(27, Some(&[])), Variant::Personalized);
-        for value in ["", "16.9", "27.beta", "27.0.", "27.0.0.1", "100.0"] { assert!(major_version(value).is_none()); }
+        for value in ["", "15.9", "27.beta", "27.0.", "27.0.0.1", "100.0"] { assert!(major_version(value).is_none()); }
+        assert_eq!(major_version("16.6"), Some(16));
         assert_eq!(major_version("26.4"), Some(26));
     }
 

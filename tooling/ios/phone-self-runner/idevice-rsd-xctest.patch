@@ -1946,7 +1946,7 @@ diff --git a/idevice/src/services/dvt/xctest/mod.rs b/idevice/src/services/dvt/x
 +    listener: &mut L,
 +    mut cancel: tokio::sync::watch::Receiver<bool>,
 +) -> Result<(), IdeviceError> {
-+    if ios_major_version < 17 {
++    if ios_major_version < 16 {
 +        return Err(IdeviceError::ServiceNotFound);
 +    }
 +    let connections = async {

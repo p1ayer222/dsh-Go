@@ -558,7 +558,7 @@ async fn run_session(
             .as_string()
             .and_then(|v| v.split('.').next())
             .and_then(|v| v.parse().ok())
-            .filter(|v| *v >= 17)
+            .filter(|v| *v >= 16)
             .ok_or(DDI)?;
         let mut proxy =
             InstallationProxyClient::connect_rsd(&mut tunnel.adapter, &mut tunnel.handshake)

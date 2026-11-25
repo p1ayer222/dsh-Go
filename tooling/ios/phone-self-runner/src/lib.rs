@@ -434,8 +434,8 @@ async fn connect_tunnel_reporting(
     } else {
         &[host]
     };
-    let (stream, client_ip) = connect_self_route_tcp(hosts, port).await?;
     let mut pairing = input.load().await?;
+    let (stream, client_ip) = connect_self_route_tcp(hosts, port).await?;
     let tunnel = finish_tunnel(stream, client_ip, &mut pairing, report).await?;
     drop(pairing);
     Ok(tunnel)

@@ -44,6 +44,8 @@ enum IOSPhonePairingRecord {
     if let value = dictionary["alt_irk"] {
       guard let irk = value as? Data, irk.count == 16 else { throw IOSPhonePairingError.invalid }
       canonical["alt_irk"] = irk
+    } else if let peer = dictionary["peer_alt_irk"] as? Data, peer.count == 16 {
+      canonical["alt_irk"] = peer
     }
     // Drop unrecognized fields instead of retaining unrelated device/user data.
     return try PropertyListSerialization.data(fromPropertyList: canonical, format: .binary, options: 0)

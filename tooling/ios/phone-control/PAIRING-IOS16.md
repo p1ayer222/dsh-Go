@@ -41,7 +41,9 @@ python3 -m pymobiledevice3 bonjour rsd
 
 把生成的 `remote_*.plist` 拷到 iPhone「文件」能打开的位置（**扩展名必须是 `.plist`**；微信里请用「用其他应用打开 → 存储到“文件”」），在 DSH → 本机连接 → **导入配对凭据** 中选「记住」后再点文件。
 
-**检查仍失败时**：若 App 报 `ERR_PHONE_PAIRING_REJECTED`（或旧包仍显示「要导入凭据」但第 1 步已是「已记住」），通常是 **remoted 不认这份 plist**，不是没导入。用 USB 再跑一遍 `lockdown remotepairing --pair`，导入**新文件**；检查失败快照里若只有 `vpnReachable` 没有 `pairingVerified`，也是同一类问题。
+**检查仍失败时**：若 App 报 `ERR_PHONE_PAIRING_REJECTED`（「手机不认这份配对凭据」），通常是 **本机 remoted 在 pair-verify 时拒绝了记录**，不是没导入、也**与 App 内 DSH 引擎（Node）无关**。用 USB 再跑一遍 `lockdown remotepairing --pair`，导入**新文件**；检查失败快照里若只有 `vpnReachable` 没有 `pairingVerified`，也是同一类问题。
+
+**一直 REJECTED 时（16.6 常见）**：USB 写出的记录默认是「**电脑当主机**」连 remoted；DSH 把同一份 plist 装回手机，经 LocalDevVPN 自连。这在 **17.4+** 更易过；**16.x 上 remoted 可能仍拒绝**。可试：① 手机 **LocalDevVPN 已连接** 时重做 USB `remotepairing --pair` 并再导入；② DSH 内 **清除凭据** 后再导入；③ 仍不行时，实验分支只能先走 **Mac USB `tooling/ios/phone-runner.sh`**，本机连接视为未验证。
 
 **若点文件没反应**：先确认 plist 含 `identifier`、`public_key`、`private_key`（pymobiledevice3 `lockdown remotepairing --pair` 完整跑完）；文件名带 `.plist`；不要从「预览」里点，改走「文件」App 里选；重装/更新 DSH 后 `asCopy` 导入已修复微信来源不可选问题。
 

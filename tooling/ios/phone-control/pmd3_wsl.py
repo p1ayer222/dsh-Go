@@ -22,10 +22,14 @@ def _patch_remote_pairing_plist() -> None:
     def save_pair_record(self) -> None:  # type: ignore[no-untyped-def]
         _save(self)
         data = plistlib.loads(self.pair_record_path.read_bytes())
+        changed = False
         if "identifier" not in data:
             data["identifier"] = self.identifier
-            if data.get(PEER_ALT_IRK_KEY) and "alt_irk" not in data:
-                data["alt_irk"] = data[PEER_ALT_IRK_KEY]
+            changed = True
+        if data.get(PEER_ALT_IRK_KEY) and "alt_irk" not in data:
+            data["alt_irk"] = data[PEER_ALT_IRK_KEY]
+            changed = True
+        if changed:
             self.pair_record_path.write_bytes(plistlib.dumps(data))
 
     RemotePairingProtocol.save_pair_record = save_pair_record  # type: ignore[method-assign]

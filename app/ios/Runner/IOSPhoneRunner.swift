@@ -15,6 +15,25 @@ final class IOSPhoneRunner {
 
   private typealias Endpoint = PhoneRunnerEndpoint
 
+  private static func coreConnectionFailure(_ failure: IOSPhoneCoreFailure) -> String {
+    switch failure.code {
+    case "ERR_PHONE_PAIRING_REJECTED":
+      return """
+      ERR_PHONE_PAIRING_REJECTED：本机 remoted 没有接受这份 Remote Pairing（不是「没导入」）。请在电脑 USB 上重新执行 lockdown remotepairing --pair，把新的 remote_*.plist 导入，并保持 LocalDevVPN 已连接、手机解锁。不要自动重试。
+      """
+    case "ERR_PHONE_PAIRING_REQUIRED":
+      return """
+      ERR_PHONE_PAIRING_REQUIRED：没有读到可用配对凭据。请在「本机连接」导入 remote_*.plist，并打开「本机开发者连接」开关。
+      """
+    case "ERR_PHONE_TUNNEL":
+      return """
+      ERR_PHONE_TUNNEL：连不上本机 remoted（VPN/端口）。先确认 LocalDevVPN 已连接、开发者模式已开，再检查连接。不要自动重试。
+      """
+  default:
+      return failure.code + "：本次未完成连接；不自动重复动作。需要镜像时请到连接设置明确准备。"
+    }
+  }
+
   private let actions: IOSPhoneActions
   private let session: URLSession
   private let selfRunner: IOSPhoneSelfRunner
@@ -251,7 +270,7 @@ final class IOSPhoneRunner {
         guard !mustCore, !failure.mayHaveActed, core.maySwitchBackend,
           link.xctestEnabled, !link.appRoutes.values.contains("coredevice"),
           !requiresObservation else {
-          return .failure(failure.code + "：本次未完成连接；不自动重复动作。需要镜像时请到连接设置明确准备。")
+          return .failure(Self.coreConnectionFailure(failure))
         }
       }
     }

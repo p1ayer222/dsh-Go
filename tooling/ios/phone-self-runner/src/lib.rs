@@ -168,6 +168,9 @@ pub(crate) struct Failure(pub(crate) &'static str);
 const PAIRING: Failure = Failure(
     "ERR_PHONE_PAIRING_REQUIRED: Import a valid remote pairing record and enable LocalDevVPN.",
 );
+const PAIRING_REJECTED: Failure = Failure(
+    "ERR_PHONE_PAIRING_REJECTED: The device rejected this Remote Pairing record; regenerate it over USB and import again.",
+);
 const TUNNEL: Failure =
     Failure("ERR_PHONE_TUNNEL: Could not establish the device developer tunnel.");
 const DDI: Failure = Failure(
@@ -371,9 +374,9 @@ async fn connect_tunnel(
     connect_tunnel_reporting(input, host, port, |_| {}).await
 }
 
-/// On-device self-route clients may reach remoted on either LocalDevVPN's
-/// `10.7.0.1` or loopback depending on the VPN build (notably some iOS 16.x).
-const SELF_ROUTE_HOSTS: &[&str] = &["10.7.0.1", "127.0.0.1"];
+/// On-device self-route clients may reach remoted on either loopback or
+/// LocalDevVPN's `10.7.0.1` depending on the VPN build (notably some iOS 16.x).
+const SELF_ROUTE_HOSTS: &[&str] = &["127.0.0.1", "10.7.0.1"];
 const SELF_ROUTE_TCP: Duration = Duration::from_secs(12);
 
 async fn connect_self_route_tcp(hosts: &[&str], port: u16) -> Result<(TcpStream, IpAddr), Failure> {
@@ -396,8 +399,8 @@ async fn finish_tunnel(
     report("vpnReachable");
     let mut rpc = RemotePairingClient::new(RpPairingSocket::new(stream), "dsh-go-self-runner");
     // This is a use-existing-pairing path, never a background PIN/pairing prompt.
-    rpc.attempt_pair_verify().await.map_err(|_| PAIRING)?;
-    rpc.validate_pairing(pairing).await.map_err(|_| PAIRING)?;
+    rpc.attempt_pair_verify().await.map_err(|_| PAIRING_REJECTED)?;
+    rpc.validate_pairing(pairing).await.map_err(|_| PAIRING_REJECTED)?;
     report("pairingVerified");
     let listener_port = rpc.create_tcp_listener().await.map_err(|_| TUNNEL)?;
     let stream = TcpStream::connect(SocketAddr::new(client_ip, listener_port))

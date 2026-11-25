@@ -96,6 +96,8 @@
   "iosPhoneLinkErrorPairingLockdown": "这是 Lockdown/USB 信任记录（idevice_pair 的 Lockdown），不能导入。DSH 需要 Remote Pairing。iOS 16 请用 pymobiledevice3：先 lockdown pair，再 remote pair，导入 remote_*.plist；iOS 17.4+ 可用 idevice_pair 的 Remote pairing。",
   "iosPhoneLinkErrorStorage": "保存没成功。「记住在这台手机上」需要手机设了解锁密码。",
   "iosPhoneLinkErrorPairingRequired": "先导入配对凭据。",
+  "iosPhoneLinkErrorLinkDisabled": "先在第 2 步打开「本机开发者连接」。",
+  "iosPhoneLinkErrorLegacyMigrate": "发现旧版留在 App 文稿里的 pairingFile.plist。点上方「迁移」，按提示保存到钥匙串并删掉旧文件后再检查。",
   "iosPhoneLinkErrorTunnel": "连不上本机服务。先确认用于本机连接的 LocalDevVPN 已接通、开发者模式已打开，再检查连接。",
   "iosSpeechCallEndNoRecognizer": "语音通话需要能识别录音的方式：登录 DeepSeek 账号、填写 API Key，或配置其他可用的云端识别。iOS 暂不提供本地语音模型下载。",
   "iosSpeechCallEndNoRecognizerSignedIn": "当前连接不能用已登录账号识别通话录音（例如经 DSH Remote 中继）；请填写 DeepSeek API Key 或配置其他可用的云端识别。iOS 暂不提供本地语音模型下载。",

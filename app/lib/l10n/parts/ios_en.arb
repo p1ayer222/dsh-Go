@@ -86,6 +86,8 @@
   "iosPhoneLinkErrorPairingLockdown": "This is a Lockdown/USB trust record (idevice_pair Lockdown), not importable. DSH needs Remote Pairing. On iOS 16 use pymobiledevice3: lockdown pair, then remote pair, and import remote_*.plist; on iOS 17.4+ use idevice_pair Remote pairing.",
   "iosPhoneLinkErrorStorage": "Saving didn't work. \"Kept on this phone\" needs a device passcode.",
   "iosPhoneLinkErrorPairingRequired": "Import a pairing record first.",
+  "iosPhoneLinkErrorLinkDisabled": "Turn on the on-device developer connection in step 2 first.",
+  "iosPhoneLinkErrorLegacyMigrate": "An old pairingFile.plist is still in the app documents. Tap Migrate above, save it the way you choose, then check again.",
   "iosPhoneLinkErrorTunnel": "Can't reach this phone's services. First check that LocalDevVPN is connected and Developer Mode is on, then check the connection again.",
   "iosSpeechCallEndNoRecognizer": "Voice calls need a way to recognize recordings: sign in to DeepSeek, add an API key, or configure another available cloud recognizer. The local voice model is not available on iOS yet.",
   "iosSpeechCallEndNoRecognizerSignedIn": "This connection can't use your signed-in account to recognize call recordings (for example, through DSH Remote). Add a DeepSeek API key or configure another available cloud recognizer. The local voice model is not available on iOS yet.",

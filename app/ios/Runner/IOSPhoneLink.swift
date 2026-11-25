@@ -134,7 +134,8 @@ final class IOSPhoneLink: NSObject, FlutterStreamHandler, @preconcurrency UIDocu
           message: "配对凭据可以连接本机开发者服务，用于读屏、触摸和输入。每个手机任务首次需要批准，授权最多 30 分钟；可随时暂停、关闭连接或清除凭据。",
           choices: [("enable", "启用"), ("cancel", "取消")])
         guard allowed == "enable", self.current(id), self.foreground else { return self.answer(false, code: "ERR_PHONE_CANCELLED") }
-        guard self.pairing.hasRecord, !self.legacyPresent else { return self.answer(false, code: "ERR_PHONE_PAIRING_REQUIRED") }
+        guard self.pairing.hasRecord else { return self.answer(false, code: "ERR_PHONE_PAIRING_REQUIRED") }
+        guard !self.legacyPresent else { return self.answer(false, code: "ERR_PHONE_LEGACY_PAIRING") }
         self.invalidate(); self.defaults.set(true, forKey: "dsh.ios.phone.link.enabled")
         return self.answer(true)
       }
@@ -189,7 +190,9 @@ final class IOSPhoneLink: NSObject, FlutterStreamHandler, @preconcurrency UIDocu
       begin(reply) { [weak self] id in
         guard let self else { return ["ok": false, "code": "ERR_PHONE_CANCELLED"] }
         let coreOwner = "settings:" + id.uuidString
-        guard self.enabled, self.pairing.hasRecord, !self.legacyPresent else { return self.answer(false, code: "ERR_PHONE_LINK_DISABLED") }
+        guard self.pairing.hasRecord else { return self.answer(false, code: "ERR_PHONE_PAIRING_REQUIRED") }
+        guard !self.legacyPresent else { return self.answer(false, code: "ERR_PHONE_LEGACY_PAIRING") }
+        guard self.enabled else { return self.answer(false, code: "ERR_PHONE_LINK_DISABLED") }
         guard !IOSPhoneControl.shared.hasActivePhoneTask else { return self.answer(false, code: "ERR_PHONE_BUSY") }
         if mount {
           let allowed = await self.ask(title: "准备本机开发者镜像？",

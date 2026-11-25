@@ -41,6 +41,8 @@ python3 -m pymobiledevice3 bonjour rsd
 
 把生成的 `remote_*.plist` 拷到 iPhone「文件」能打开的位置（**扩展名必须是 `.plist`**；微信里请用「用其他应用打开 → 存储到“文件”」），在 DSH → 本机连接 → **导入配对凭据** 中选「记住」后再点文件。
 
+**检查仍失败时**：若 App 报 `ERR_PHONE_PAIRING_REJECTED`（或旧包仍显示「要导入凭据」但第 1 步已是「已记住」），通常是 **remoted 不认这份 plist**，不是没导入。用 USB 再跑一遍 `lockdown remotepairing --pair`，导入**新文件**；检查失败快照里若只有 `vpnReachable` 没有 `pairingVerified`，也是同一类问题。
+
 **若点文件没反应**：先确认 plist 含 `identifier`、`public_key`、`private_key`（pymobiledevice3 `lockdown remotepairing --pair` 完整跑完）；文件名带 `.plist`；不要从「预览」里点，改走「文件」App 里选；重装/更新 DSH 后 `asCopy` 导入已修复微信来源不可选问题。
 
 ### iOS 17.4+ 的更简单 USB 路线（对照）

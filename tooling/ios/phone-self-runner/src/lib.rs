@@ -370,26 +370,36 @@ async fn connect_tunnel(
     connect_tunnel_reporting(input, host, port, |_| {}).await
 }
 
-async fn connect_tunnel_reporting(
-    input: pairing::PairingInput, host: &str, port: u16,
+/// On-device self-route clients may reach remoted on either LocalDevVPN's
+/// `10.7.0.1` or loopback depending on the VPN build (notably some iOS 16.x).
+const SELF_ROUTE_HOSTS: &[&str] = &["10.7.0.1", "127.0.0.1"];
+const SELF_ROUTE_TCP: Duration = Duration::from_secs(12);
+
+async fn connect_self_route_tcp(hosts: &[&str], port: u16) -> Result<(TcpStream, IpAddr), Failure> {
+    let mut last = TUNNEL;
+    for host in hosts {
+        let ip: IpAddr = host.parse().map_err(|_| TUNNEL)?;
+        let address = SocketAddr::new(ip, port);
+        match tokio::time::timeout(SELF_ROUTE_TCP, TcpStream::connect(address)).await {
+            Ok(Ok(stream)) => return Ok((stream, ip)),
+            Ok(Err(_)) | Err(_) => last = TUNNEL,
+        }
+    }
+    Err(last)
+}
+
+async fn finish_tunnel(
+    stream: TcpStream, client_ip: IpAddr, pairing: &mut pairing::PairingRecord,
     report: impl Fn(&'static str),
 ) -> Result<Tunnel, Failure> {
-    let mut pairing = input.load().await?;
-    let address = SocketAddr::new(host.parse().map_err(|_| TUNNEL)?, port);
-    let stream = TcpStream::connect(address).await.map_err(|_| TUNNEL)?;
     report("vpnReachable");
     let mut rpc = RemotePairingClient::new(RpPairingSocket::new(stream), "dsh-go-self-runner");
     // This is a use-existing-pairing path, never a background PIN/pairing prompt.
     rpc.attempt_pair_verify().await.map_err(|_| PAIRING)?;
-    rpc.validate_pairing(&mut pairing)
-        .await
-        .map_err(|_| PAIRING)?;
-    // The persistent signing key is no longer needed once pair-verify ends.
-    // The RPC/tunnel retain only their per-session derived key material.
-    drop(pairing);
+    rpc.validate_pairing(pairing).await.map_err(|_| PAIRING)?;
     report("pairingVerified");
-    let port = rpc.create_tcp_listener().await.map_err(|_| TUNNEL)?;
-    let stream = TcpStream::connect(SocketAddr::new(address.ip(), port))
+    let listener_port = rpc.create_tcp_listener().await.map_err(|_| TUNNEL)?;
+    let stream = TcpStream::connect(SocketAddr::new(client_ip, listener_port))
         .await
         .map_err(|_| TUNNEL)?;
     let tunnel = connect_tls_psk_tunnel_native(stream, rpc.encryption_key())
@@ -410,6 +420,24 @@ async fn connect_tunnel_reporting(
         rsd_port,
         _pairing: rpc,
     })
+}
+
+async fn connect_tunnel_reporting(
+    input: pairing::PairingInput, host: &str, port: u16,
+    report: impl Fn(&'static str),
+) -> Result<Tunnel, Failure> {
+    let hosts: &[&str] = if host == "10.7.0.1" {
+        SELF_ROUTE_HOSTS
+    } else if host.parse::<IpAddr>().map_or(false, |ip| ip.is_loopback()) {
+        &["127.0.0.1"]
+    } else {
+        &[host]
+    };
+    let (stream, client_ip) = connect_self_route_tcp(hosts, port).await?;
+    let mut pairing = input.load().await?;
+    let tunnel = finish_tunnel(stream, client_ip, &mut pairing, report).await?;
+    drop(pairing);
+    Ok(tunnel)
 }
 
 impl Tunnel {

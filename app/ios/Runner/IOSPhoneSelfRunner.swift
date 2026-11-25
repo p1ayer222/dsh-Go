@@ -405,7 +405,7 @@ final class PhoneRemotePairingPort: NSObject, @preconcurrency NetServiceBrowserD
       resolver.browser.schedule(in: .main, forMode: .default)
       resolver.browser.searchForServices(ofType: "_remotepairing._tcp.", inDomain: "local.")
       // Retain through the deadline even when the advertisement arrives early.
-      DispatchQueue.main.asyncAfter(deadline: .now() + 4) { resolver.finish(49152) }
+      DispatchQueue.main.asyncAfter(deadline: .now() + 8) { resolver.finish(49152) }
     }
   }
 
@@ -418,8 +418,9 @@ final class PhoneRemotePairingPort: NSObject, @preconcurrency NetServiceBrowserD
   func netServiceDidResolveAddress(_ sender: NetService) {
     // A nearby iPhone can advertise the same service. Its port says nothing
     // about this device's 10.7.0.1 endpoint, so only accept local addresses.
+    guard (1...65535).contains(sender.port) else { return }
     let local = Self.localAddresses()
-    guard (1...65535).contains(sender.port), sender.addresses?.contains(where: { data in
+    let hasLocalAddress = sender.addresses?.contains(where: { data in
       guard data.count >= MemoryLayout<sockaddr>.size, data.count <= MemoryLayout<sockaddr_storage>.size else { return false }
       var storage = sockaddr_storage()
       _ = withUnsafeMutableBytes(of: &storage) { data.copyBytes(to: $0) }
@@ -429,8 +430,16 @@ final class PhoneRemotePairingPort: NSObject, @preconcurrency NetServiceBrowserD
           return Self.numericAddress(address).map { local.contains($0) } == true
         }
       }
-    }) == true else { return }
-    finish(UInt16(sender.port))
+    }) == true
+    if hasLocalAddress {
+      finish(UInt16(sender.port))
+      return
+    }
+    // ponytail: iOS 16 LocalDevVPN sometimes publishes only the port; with a single
+    // advertisement on this phone, the SRV port is still the local remoted listener.
+    if services.count == 1, sender === services[0] {
+      finish(UInt16(sender.port))
+    }
   }
 
   private static func localAddresses() -> Set<String> {

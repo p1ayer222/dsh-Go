@@ -21,9 +21,16 @@ Apple 自 **iOS 16.0** 起在 USB 上会多一个连到 `remoted` 的链路；`p
 ### 推荐命令（实机 16.x，USB）
 
 ```bash
+# WSL2：走 Windows Apple Mobile Device Service 时，裸跑 pymobiledevice3 常在
+# SavePairRecord 处得到 Number:183（记录已写入 Linux 缓存，但 Windows usbmux 不收）。
+# 用仓库包装脚本代替（与下面命令等价，仅忽略 183）：
+uvx --managed-python --with pymobiledevice3 python tooling/ios/phone-control/pmd3_wsl.py lockdown pair
+uvx --managed-python --with pymobiledevice3 python tooling/ios/phone-control/pmd3_wsl.py lockdown remotepairing --pair
+# 生成的 remote_<udid>.plist 在 ~/.local/share/pymobiledevice3/
+
 # 1) USB lockdown 信任（必须先成功；失败时不要跑 remote pair）
 python3 -m pymobiledevice3 lockdown pair
-# Windows 若 SavePairRecord Number:183：装/重装 Apple 移动设备支持，换线/USB口，设置→还原→还原位置与隐私 后重插再信；或用 3uTools/iTunes 先配对一次。
+# 原生 Windows/macOS 若仍见 183：装/重装 Apple 移动设备支持，换线/USB 口，或 iTunes/3uTools 先配对。
 
 # 2) iOS 16 在 USB 上生成 RP（不要用 bare `remote pair`，那是 Bonjour/Apple TV）
 python3 -m pymobiledevice3 lockdown remotepairing --pair

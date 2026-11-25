@@ -3,6 +3,7 @@
 //! The pinned idevice library owns RPPairing/DTX; this crate owns one native lifetime.
 mod ffi;
 mod pairing;
+mod ddi_legacy;
 mod ddi;
 mod core_device;
 mod media;

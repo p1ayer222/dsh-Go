@@ -1,7 +1,6 @@
 //! Explicitly authorized DDI preparation over the existing RSD tunnel.
 //! Portable validation is tested; mounting and Apple TSS are NOT device-verified.
-mod ddi_legacy;
-
+use crate::ddi_legacy;
 use std::ffi::CString;
 use std::fs::{File, OpenOptions};
 use std::io::Read;
@@ -250,7 +249,7 @@ fn major_version(value: &str) -> Option<u32> {
     }
     parts[0].parse().ok().filter(|major| *major >= 16 && *major < 100)
 }
-#[derive(Clone, Copy, PartialEq, Eq)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
 enum Route { Legacy { release: &'static str }, Personalized, Cryptex }
 
 fn choose_modern(major: u32, features: Option<&[String]>) -> Variant {
@@ -304,7 +303,8 @@ pub(crate) async fn ensure(
 ) -> Result<bool, Failure> {
     if required.iter().all(|name| tunnel.handshake.services.contains_key(*name)) { return Ok(false); }
     if !allow_mount { return Err(DDI); }
-    let features = tunnel.handshake.services.get(CRYPTEX_SERVICE).and_then(|s| s.features.as_deref());
+    let cryptex_caps = tunnel.handshake.services.get(CRYPTEX_SERVICE).and_then(|s| s.features.clone());
+    let features = cryptex_caps.as_deref();
     let has_mounter = tunnel.handshake.services.contains_key(ImageMounter::rsd_service_name().as_ref());
     let product_version = lockdown_product_version(tunnel).await?;
     let route = pick_route(&product_version, features)?;
@@ -453,7 +453,7 @@ mod tests {
     #[ignore = "requires the exact verified catalog fixture, never mounts or contacts a device"]
     fn real_pinned_catalog_files_pass_independent_native_validation() {
         let directory = std::env::var("DSH_TEST_DDI_CACHE").expect("set DSH_TEST_DDI_CACHE to the fixed-layout fixture");
-        let cache = DdiCache { catalog_id: CATALOG_ID.into(), directory,
+        let cache = DdiCache { catalog_id: CATALOG_ID.into(), directory, legacy: None,
             personalized: Some(PersonalizedHashes {
                 manifest: expected(Variant::Personalized,"BuildManifest.plist").into(),
                 image: expected(Variant::Personalized,"Image.dmg").into(),

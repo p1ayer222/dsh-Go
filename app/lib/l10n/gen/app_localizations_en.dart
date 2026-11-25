@@ -5369,6 +5369,44 @@ class L10nEn extends L10n {
   }
 
   @override
+  String get companionPhoneConnectionReplaced =>
+      'A newer phone connection took over this session. Return to the current companion session and try again.';
+
+  @override
+  String get companionPhoneSessionUnavailable =>
+      'The host cannot find this companion session, or its preset has changed. Reopen the companion room.';
+
+  @override
+  String get companionPhoneToolsConflict =>
+      'The host could not connect the phone tools for this turn. Reopen the current companion session and try again.';
+
+  @override
+  String get companionHostSelectionChanged =>
+      'The host session selection changed. Check the current session before sending again.';
+
+  @override
+  String get companionLocalDisconnected => 'The on-device engine is disconnected. Check that it is running.';
+
+  @override
+  String get companionLocalUnavailable =>
+      'The on-device engine cannot open the companion session. Check the engine and its companion preset.';
+
+  @override
+  String get companionLocalModelUnavailable =>
+      'The on-device engine cannot use this companion’s previously selected model. Check its model settings.';
+
+  @override
+  String get companionContinuedOnPhone => 'The host has not received this message. This turn will use light mode.';
+
+  @override
+  String get companionLogOnDevice => 'On-device history';
+
+  @override
+  String companionSessionUsingTool(String tool) {
+    return 'Using $tool';
+  }
+
+  @override
   String get companionTitle => 'Companion room';
 
   @override
@@ -7643,7 +7681,7 @@ class L10nEn extends L10n {
 
   @override
   String get companionScreenHint =>
-      'She glances at the screen now and then and only speaks up when something is worth saying; nothing she sees is kept';
+      'She watches the screen with you and speaks up when something catches her eye; the screen itself is not kept, only her last few remarks';
 
   @override
   String get companionScreenNeedsAccess =>
@@ -7700,6 +7738,18 @@ class L10nEn extends L10n {
 
   @override
   String get companionScreenChattyHint => 'Talks with you more often';
+
+  @override
+  String get companionScreenLive => 'Live';
+
+  @override
+  String get companionScreenLiveHint => 'Keeps watching and can speak up several times a minute';
+
+  @override
+  String get companionScreenPerHour => 'Most lines an hour';
+
+  @override
+  String get companionScreenPerHourNone => 'No limit';
 
   @override
   String get companionScreenUsageAccess => 'Let her know which app you\'re using';

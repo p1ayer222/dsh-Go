@@ -288,7 +288,10 @@ impl Drop for PendingRequest {
 fn stable_code(error: Failure) -> &'static str { error.0.split(':').next().unwrap_or("ERR_PHONE_INTERNAL") }
 fn variant(error: Failure) -> Option<&'static str> {
     match error.0.split_once(':').map(|(_, value)| value) {
-        Some("personalized") => Some("personalized"), Some("cryptex") => Some("cryptex"), _ => None,
+        Some("personalized") => Some("personalized"),
+        Some("cryptex") => Some("cryptex"),
+        Some(value) if value.starts_with("legacy-") => Some(value),
+        _ => None,
     }
 }
 fn failure_metadata(error: Failure, acted: bool, cleanup: bool) -> Value {

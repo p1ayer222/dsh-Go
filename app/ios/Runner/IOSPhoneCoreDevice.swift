@@ -470,7 +470,8 @@ final class IOSPhoneCoreDevice: NSObject {
       let code = Self.safeCode(event.code) ?? (kind == 2 ? "OK" : "ERR_PHONE_CORE_PROTOCOL")
       run.capabilities = nil
       run.failure = .init(code: kind == 2 ? "ERR_PHONE_CANCELLED" : code,
-        variant: ["personalized", "cryptex"].contains(event.variant ?? "") ? event.variant : nil,
+        variant: (event.variant?.hasPrefix("legacy-") == true
+          || ["personalized", "cryptex"].contains(event.variant ?? "")) ? event.variant : nil,
         mayHaveActed: event.mayHaveActed ?? (kind == 4))
       run.fault = kind == 4 ? .native : nil
       run.terminal = kind != 4

@@ -22,11 +22,68 @@ final class IOSPhoneDDICache {
   }
   static let catalogID = "ddi-e2aaeac89ca8fa56c2fa1f144d182994e07a525b-v1"
   static let sourceCommit = "e2aaeac89ca8fa56c2fa1f144d182994e07a525b"
+  struct LegacyRelease: Sendable {
+    let release: String
+    let image: Asset
+    let signature: Asset
+  }
+  // Pre-iOS 17 DeveloperDiskImage.dmg pins (same commit/hash table as phone-self-runner ddi_legacy.rs).
+  static let legacyReleases: [LegacyRelease] = [
+    LegacyRelease(release: "16.0",
+      image: Asset(key: "image", filename: "DeveloperDiskImage.dmg", bytes: 8_464_365,
+        sha256: "429d2d05b7c9093f214b117a26571fa7d9596c5ff03e7983b70caff743f0afb1"),
+      signature: Asset(key: "signature", filename: "DeveloperDiskImage.dmg.signature", bytes: 128,
+        sha256: "d30ae9c12874254c5cb453abb7c412c6796913e5533de6b68f1b28f435981100")),
+    LegacyRelease(release: "16.1",
+      image: Asset(key: "image", filename: "DeveloperDiskImage.dmg", bytes: 8_448_885,
+        sha256: "086bf1c1a278615e60dd5ce2d2ff55a21996bbdef3dc67df20e209e7dcd48558"),
+      signature: Asset(key: "signature", filename: "DeveloperDiskImage.dmg.signature", bytes: 128,
+        sha256: "54b0ad8113231b1e11faebfdae4b347b482ed12dbe8caf155d25b17e74b1a60e")),
+    LegacyRelease(release: "16.2",
+      image: Asset(key: "image", filename: "DeveloperDiskImage.dmg", bytes: 8_466_283,
+        sha256: "d30f6d1274e1300910cd22c1104136006f0c55e28110b16cf20ed1ec48fad0e5"),
+      signature: Asset(key: "signature", filename: "DeveloperDiskImage.dmg.signature", bytes: 128,
+        sha256: "247aa8dd50dea880437a1fabfda21552971f88d39384aca6f13d2c0eba7bdac0")),
+    LegacyRelease(release: "16.3",
+      image: Asset(key: "image", filename: "DeveloperDiskImage.dmg", bytes: 8_466_283,
+        sha256: "d30f6d1274e1300910cd22c1104136006f0c55e28110b16cf20ed1ec48fad0e5"),
+      signature: Asset(key: "signature", filename: "DeveloperDiskImage.dmg.signature", bytes: 128,
+        sha256: "247aa8dd50dea880437a1fabfda21552971f88d39384aca6f13d2c0eba7bdac0")),
+    LegacyRelease(release: "16.4",
+      image: Asset(key: "image", filename: "DeveloperDiskImage.dmg", bytes: 7_432_520,
+        sha256: "6e4449ff8c751b4432934ade838382c79330b096b865eebabbc1fa42ead9c185"),
+      signature: Asset(key: "signature", filename: "DeveloperDiskImage.dmg.signature", bytes: 128,
+        sha256: "4e82ee8aa75c5ecdd320e075b7d9e4ea2fc1915d0bb776007e8dbc5728ca5d86")),
+    LegacyRelease(release: "16.5",
+      image: Asset(key: "image", filename: "DeveloperDiskImage.dmg", bytes: 7_427_565,
+        sha256: "99fcf9a7300ab2504a2b9a79f210702f2f6d6eb056053fc8517b80a6a3e18a16"),
+      signature: Asset(key: "signature", filename: "DeveloperDiskImage.dmg.signature", bytes: 128,
+        sha256: "355169a9753c23fff95f6ebc1e39a433f653a9e0e059580642d92629c1ac0071")),
+    LegacyRelease(release: "16.6",
+      image: Asset(key: "image", filename: "DeveloperDiskImage.dmg", bytes: 7_432_520,
+        sha256: "6e4449ff8c751b4432934ade838382c79330b096b865eebabbc1fa42ead9c185"),
+      signature: Asset(key: "signature", filename: "DeveloperDiskImage.dmg.signature", bytes: 128,
+        sha256: "4e82ee8aa75c5ecdd320e075b7d9e4ea2fc1915d0bb776007e8dbc5728ca5d86")),
+    LegacyRelease(release: "16.7",
+      image: Asset(key: "image", filename: "DeveloperDiskImage.dmg", bytes: 7_432_520,
+        sha256: "6e4449ff8c751b4432934ade838382c79330b096b865eebabbc1fa42ead9c185"),
+      signature: Asset(key: "signature", filename: "DeveloperDiskImage.dmg.signature", bytes: 128,
+        sha256: "4e82ee8aa75c5ecdd320e075b7d9e4ea2fc1915d0bb776007e8dbc5728ca5d86")),
+  ]
+  static func legacyCatalogID(_ release: String) -> String { "ddi-legacy-\(sourceCommit)-\(release)-v1" }
+  static func legacyRelease(_ release: String) -> LegacyRelease? {
+    legacyReleases.first { $0.release == release }
+  }
+  static func legacySource(_ release: String, asset: Asset) -> URL {
+    URL(string: "https://raw.githubusercontent.com/doronz88/DeveloperDiskImage/\(sourceCommit)/DeveloperDiskImages/\(release)/\(asset.filename)")!
+  }
   static let shared = IOSPhoneDDICache()
   private let root: URL
   private let anchor: URL
   private let components: [String]
   private var verified = Set<Variant>()
+  private var verifiedLegacy = Set<String>()
+  private var lastLegacyPrepared: String?
   private var busy = false
   private var progressID: UUID?
   private var progressCompleted: Int64 = 0
@@ -80,13 +137,44 @@ final class IOSPhoneDDICache {
   }
 
   func status() -> [String: Any] {
-    ["catalogId": Self.catalogID, "downloading": busy,
-     "verifiedThisProcess": verified.map(\.rawValue).sorted()]
+    var payload: [String: Any] = ["catalogId": activeCatalogID(), "downloading": busy,
+      "verifiedThisProcess": verified.map(\.rawValue).sorted()]
+    if !verifiedLegacy.isEmpty { payload["legacyReleases"] = verifiedLegacy.sorted() }
+    return payload
+  }
+
+  private func activeCatalogID() -> String {
+    if let row = Self.legacyReleases.first(where: { legacyReady($0.release) }) {
+      return Self.legacyCatalogID(row.release)
+    }
+    return Self.catalogID
+  }
+
+  private func legacyRoot(_ release: String) -> URL {
+    let catalog = ["Library", "Caches", "phone-ddi", Self.legacyCatalogID(release)]
+    return catalog.reduce(anchor) { $0.appendingPathComponent($1, isDirectory: true) }
+  }
+
+  private func legacyReady(_ release: String) -> Bool {
+    guard let row = Self.legacyRelease(release) else { return false }
+    let directory = legacyRoot(release).appendingPathComponent("developer", isDirectory: true)
+    return [row.image, row.signature].allSatisfy {
+      FileManager.default.fileExists(atPath: directory.appendingPathComponent($0.filename).path)
+    }
   }
 
   /// Internal FFI input. Rust independently opens anchored, no-follow FDs and
   /// verifies every byte; a previous Swift cache check grants no file authority.
   func nativeConfiguration() -> [String: Any] {
+    let preferred = lastLegacyPrepared.flatMap(Self.legacyRelease) ?? Self.legacyReleases.first(where: { legacyReady($0.release) })
+    if let row = preferred, legacyReady(row.release) {
+      let root = legacyRoot(row.release)
+      return [
+        "catalogId": Self.legacyCatalogID(row.release),
+        "directory": root.path,
+        "legacy": ["release": row.release, "image": row.image.sha256, "signature": row.signature.sha256],
+      ]
+    }
     var result: [String: Any] = ["catalogId": Self.catalogID, "directory": root.path]
     for variant in Variant.allCases {
       let directory = root.appendingPathComponent(variant.rawValue, isDirectory: true)
@@ -132,6 +220,44 @@ final class IOSPhoneDDICache {
       completed += asset.bytes; report(completed, total: total, id: preparation, sink: progress)
     }
     verified.insert(variant)
+  }
+
+  func prepareLegacy(_ release: String,
+                     progress: @escaping @MainActor (Int64, Int64) -> Void) async throws {
+    guard let row = Self.legacyRelease(release) else { throw IOSPhoneDDIError.unavailable }
+    guard !busy else { throw IOSPhoneDDIError.unavailable }
+    busy = true
+    let preparation = UUID()
+    progressID = preparation; progressCompleted = 0
+    defer { busy = false; if progressID == preparation { progressID = nil } }
+  let catalog = ["Library", "Caches", "phone-ddi", Self.legacyCatalogID(release), "developer"]
+    let directory = try IOSPhoneDDIDirectory.openPath(anchor: anchor, components: catalog)
+    let assets = [row.image, row.signature]
+    let total = assets.reduce(Int64(0)) { $0 + $1.bytes }
+    var completed: Int64 = 0
+    report(completed, total: total, id: preparation, sink: progress)
+    for asset in assets {
+      try Task.checkCancellation()
+      let cached = try? await Self.verifyOnWorker { try directory.verify(asset) }
+      try Task.checkCancellation()
+      if cached == true {
+        completed += asset.bytes; report(completed, total: total, id: preparation, sink: progress); continue
+      }
+      let temporary = ".download-" + UUID().uuidString
+      defer { directory.remove(temporary) }
+      let before = completed
+      let transfer = IOSPhoneDDITransfer(
+        source: Self.legacySource(release, asset: asset), directory: directory, temporary: temporary,
+        asset: asset, progress: { [weak self] received in
+          Task { @MainActor in self?.report(before + received, total: total, id: preparation, sink: progress) }
+        })
+      try await transfer.run()
+      try Task.checkCancellation()
+      try directory.publish(temporary, as: asset.filename)
+      completed += asset.bytes; report(completed, total: total, id: preparation, sink: progress)
+    }
+    verifiedLegacy.insert(release)
+    lastLegacyPrepared = release
   }
 
   private func report(_ completed: Int64, total: Int64, id: UUID,

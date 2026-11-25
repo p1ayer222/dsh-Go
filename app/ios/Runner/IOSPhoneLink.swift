@@ -200,12 +200,23 @@ final class IOSPhoneLink: NSObject, FlutterStreamHandler, @preconcurrency UIDocu
         let live = { [weak self] in self?.current(id) == true && self?.enabled == true }
         var checked = await self.core.prepare(ownerID: coreOwner, allowDDIMount: mount, current: live)
         if mount, case .failure(let failure) = checked, failure.code == "ERR_PHONE_DDI_CACHE_REQUIRED",
-          let name = failure.variant, let variant = IOSPhoneDDICache.Variant(rawValue: name), live() {
+          let name = failure.variant, live() {
           do {
-            try await self.cache.prepare(variant) { [weak self] done, total in
-              guard let self, self.current(id) else { return }
-              self.progress = ["stage": "downloading", "completedBytes": done, "totalBytes": total]
-              self.emit()
+            if name.hasPrefix("legacy-") {
+              let release = String(name.dropFirst("legacy-".count))
+              try await self.cache.prepareLegacy(release) { [weak self] done, total in
+                guard let self, self.current(id) else { return }
+                self.progress = ["stage": "downloading", "completedBytes": done, "totalBytes": total]
+                self.emit()
+              }
+            } else if let variant = IOSPhoneDDICache.Variant(rawValue: name) {
+              try await self.cache.prepare(variant) { [weak self] done, total in
+                guard let self, self.current(id) else { return }
+                self.progress = ["stage": "downloading", "completedBytes": done, "totalBytes": total]
+                self.emit()
+              }
+            } else {
+              return self.answer(false, code: failure.code)
             }
             guard live() else { return self.answer(false, code: "ERR_PHONE_CANCELLED") }
             checked = await self.core.prepare(ownerID: coreOwner, allowDDIMount: true, current: live)

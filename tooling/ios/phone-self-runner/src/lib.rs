@@ -163,7 +163,7 @@ impl Config {
 }
 
 #[derive(Clone, Copy, Debug)]
-struct Failure(&'static str);
+pub(crate) struct Failure(pub(crate) &'static str);
 const PAIRING: Failure = Failure(
     "ERR_PHONE_PAIRING_REQUIRED: Import a valid remote pairing record and enable LocalDevVPN.",
 );

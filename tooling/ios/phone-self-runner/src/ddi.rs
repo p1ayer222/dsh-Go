@@ -1,5 +1,7 @@
 //! Explicitly authorized DDI preparation over the existing RSD tunnel.
 //! Portable validation is tested; mounting and Apple TSS are NOT device-verified.
+mod ddi_legacy;
+
 use std::ffi::CString;
 use std::fs::{File, OpenOptions};
 use std::io::Read;
@@ -34,6 +36,14 @@ pub(crate) struct DdiCache {
     pub(crate) directory: String,
     pub(crate) personalized: Option<PersonalizedHashes>,
     pub(crate) cryptex: Option<CryptexHashes>,
+    pub(crate) legacy: Option<LegacyHashes>,
+}
+#[derive(Clone, Deserialize)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
+pub(crate) struct LegacyHashes {
+    release: String,
+    image: String,
+    signature: String,
 }
 #[derive(Clone, Deserialize)]
 #[serde(rename_all = "camelCase", deny_unknown_fields)]
@@ -79,8 +89,19 @@ impl Progress {
 
 impl DdiCache {
     pub(crate) fn valid(&self) -> bool {
-        self.catalog_id == CATALOG_ID && Path::new(&self.directory).is_absolute()
-            && self.directory.len() <= 4096 && !self.directory.contains('\0')
+        if !Path::new(&self.directory).is_absolute()
+            || self.directory.len() > 4096
+            || self.directory.contains('\0')
+        {
+            return false;
+        }
+        if let Some(legacy) = &self.legacy {
+            let Some(pin) = ddi_legacy::pin(&legacy.release) else { return false; };
+            return self.catalog_id == ddi_legacy::catalog_id(&legacy.release)
+                && legacy.image == pin.image_sha256
+                && legacy.signature == pin.signature_sha256;
+        }
+        self.catalog_id == CATALOG_ID
             && self.personalized.as_ref().is_none_or(|pins| {
                 pins.manifest == expected(Variant::Personalized, "BuildManifest.plist")
                     && pins.image == expected(Variant::Personalized, "Image.dmg")
@@ -183,6 +204,45 @@ fn load(cache: Option<&DdiCache>, variant: Variant) -> Result<Assets, Failure> {
     Ok(Assets { manifest, image, trust_cache, info, root_hash })
 }
 
+struct LegacyAssets {
+    image: Vec<u8>,
+    signature: Vec<u8>,
+}
+
+fn load_legacy(cache: Option<&DdiCache>, release: &str) -> Result<LegacyAssets, Failure> {
+    let cache = cache.ok_or_else(|| legacy_cache_required(release))?;
+    let legacy = cache.legacy.as_ref().ok_or_else(|| legacy_cache_required(release))?;
+    if legacy.release != release || !cache.valid() { return Err(legacy_cache_required(release)); }
+    let Some(pin) = ddi_legacy::pin(release) else { return Err(UNSUPPORTED); };
+    let root = OpenOptions::new().read(true)
+        .custom_flags(libc::O_DIRECTORY | libc::O_NOFOLLOW | libc::O_CLOEXEC)
+        .open(&cache.directory).map_err(|_| legacy_cache_required(release))?;
+    let directory = open_at(&root, "developer", true)?;
+    let image = read_checked(&directory, "DeveloperDiskImage.dmg", pin.image_bytes, pin.image_sha256)?;
+    let signature = read_checked(&directory, "DeveloperDiskImage.dmg.signature", pin.signature_bytes, pin.signature_sha256)?;
+    Ok(LegacyAssets { image, signature })
+}
+
+async fn developer_mounted(client: &mut ImageMounter) -> Result<bool, Failure> {
+    let devices = client.copy_devices().await.map_err(|_| MOUNT)?;
+    Ok(devices.iter().any(|entry| {
+        entry.as_dictionary()
+            .and_then(|dict| dict.get("DiskImageType").and_then(plist::Value::as_string))
+            .is_some_and(|kind| kind == "Developer" || kind == "DiskImage")
+            || entry.as_dictionary()
+                .and_then(|dict| dict.get("IsMounted").and_then(plist::Value::as_boolean))
+                .unwrap_or(false)
+    }))
+}
+
+fn legacy_cache_required(release: &str) -> Failure {
+    ddi_legacy::CACHE_REQUIRED
+        .iter()
+        .find(|(key, _)| *key == release)
+        .map(|(_, code)| Failure(code))
+        .unwrap_or(UNSUPPORTED)
+}
+
 fn major_version(value: &str) -> Option<u32> {
     let parts: Vec<_> = value.split('.').collect();
     if parts.is_empty() || parts.len() > 3 || parts.iter().any(|s| s.is_empty() || !s.bytes().all(|c| c.is_ascii_digit())) {
@@ -190,10 +250,10 @@ fn major_version(value: &str) -> Option<u32> {
     }
     parts[0].parse().ok().filter(|major| *major >= 16 && *major < 100)
 }
-fn choose(major: u32, features: Option<&[String]>) -> Variant {
-    // pymobiledevice3 776d601's conservative auto policy is 27.0, not the
-    // separate 26.4 minimum discussed in its documentation. Capability alone
-    // does not establish that an older daemon can mount the imported cryptex.
+#[derive(Clone, Copy, PartialEq, Eq)]
+enum Route { Legacy { release: &'static str }, Personalized, Cryptex }
+
+fn choose_modern(major: u32, features: Option<&[String]>) -> Variant {
     if major >= 27 && features.is_some_and(|list| list.iter().any(|s| s == "CryptexInstall")) {
         Variant::Cryptex
     } else {
@@ -201,20 +261,37 @@ fn choose(major: u32, features: Option<&[String]>) -> Variant {
     }
 }
 
-async fn device_info(tunnel: &mut Tunnel) -> Result<(u32, u64), Failure> {
+fn pick_route(product_version: &str, features: Option<&[String]>) -> Result<Route, Failure> {
+    let major = major_version(product_version).ok_or(UNSUPPORTED)?;
+    if major < 17 {
+        let release = ddi_legacy::release_label(product_version).ok_or(UNSUPPORTED)?;
+        return Ok(Route::Legacy { release });
+    }
+    Ok(match choose_modern(major, features) {
+        Variant::Cryptex => Route::Cryptex,
+        Variant::Personalized => Route::Personalized,
+    })
+}
+
+async fn lockdown_product_version(tunnel: &mut Tunnel) -> Result<String, Failure> {
     let mut client = LockdownClient::connect_rsd(&mut tunnel.adapter, &mut tunnel.handshake).await.map_err(|_| MOUNT)?;
     let version = client.get_value(Some("ProductVersion"), None).await.map_err(|_| MOUNT)?;
-    let major = version.as_string().and_then(major_version).ok_or(UNSUPPORTED)?;
+    version.as_string().filter(|s| !s.is_empty()).map(str::to_owned).ok_or(UNSUPPORTED)
+}
+
+async fn device_info(tunnel: &mut Tunnel) -> Result<(String, u32, u64), Failure> {
+    let mut client = LockdownClient::connect_rsd(&mut tunnel.adapter, &mut tunnel.handshake).await.map_err(|_| MOUNT)?;
+    let version = client.get_value(Some("ProductVersion"), None).await.map_err(|_| MOUNT)?;
+    let version = version.as_string().filter(|s| !s.is_empty()).map(str::to_owned).ok_or(UNSUPPORTED)?;
+    let major = major_version(&version).ok_or(UNSUPPORTED)?;
     let identifier = client.get_value(Some("UniqueChipID"), None).await.map_err(|_| MOUNT)?;
     let identifier = identifier.as_unsigned_integer().ok_or(UNSUPPORTED)?;
-    Ok((major, identifier))
+    Ok((version, major, identifier))
 }
-async fn mounter(tunnel: &mut Tunnel) -> Result<(ImageMounter, u32, u64), Failure> {
+async fn mounter(tunnel: &mut Tunnel) -> Result<(ImageMounter, String, u32, u64), Failure> {
     let client = ImageMounter::connect_rsd(&mut tunnel.adapter, &mut tunnel.handshake).await.map_err(|_| MOUNT)?;
-    // The pinned ImageMounter documents a required lockdown query AFTER opening
-    // each mounter connection, including its query-manifest reconnection path.
-    let (major, ecid) = device_info(tunnel).await?;
-    Ok((client, major, ecid))
+    let (version, major, ecid) = device_info(tunnel).await?;
+    Ok((client, version, major, ecid))
 }
 async fn cryptex_client(tunnel: &mut Tunnel) -> Result<CryptexdClient<Box<dyn ReadWrite>>, Failure> {
     CryptexdClient::connect_rsd(&mut tunnel.adapter, &mut tunnel.handshake).await.map_err(|_| MOUNT)
@@ -226,20 +303,40 @@ pub(crate) async fn ensure(
     submitted: &AtomicBool,
 ) -> Result<bool, Failure> {
     if required.iter().all(|name| tunnel.handshake.services.contains_key(*name)) { return Ok(false); }
-    // A status/check call never acquires mounting authority merely because the
-    // bytes happen to exist. Only the foreground setup action sets this flag.
     if !allow_mount { return Err(DDI); }
+    let features = tunnel.handshake.services.get(CRYPTEX_SERVICE).and_then(|s| s.features.as_deref());
     let has_mounter = tunnel.handshake.services.contains_key(ImageMounter::rsd_service_name().as_ref());
+    let product_version = lockdown_product_version(tunnel).await?;
+    let route = pick_route(&product_version, features)?;
+    if let Route::Legacy { release } = route {
+        if !has_mounter { return Err(UNSUPPORTED); }
+        let (mut client, _, _, _) = mounter(tunnel).await?;
+        if developer_mounted(&mut client).await? {
+            tunnel.refresh_services().await?;
+            if required.iter().all(|name| tunnel.handshake.services.contains_key(*name)) { return Ok(false); }
+        }
+        if !client.query_developer_mode_status().await.map_err(|_| MOUNT)? { return Err(DDI); }
+        progress(Progress { stage: "verifyingAssets", variant: None, completed: None, total: None });
+        let assets = load_legacy(cache, release)?;
+        progress(Progress { stage: "uploading", variant: None, completed: None, total: None });
+        submitted.store(true, Ordering::Release);
+        client.mount_developer(&assets.image, assets.signature).await.map_err(|_| MOUNT)?;
+        progress(Progress { stage: "refreshingServices", variant: None, completed: None, total: None });
+        tunnel.refresh_services().await?;
+        if !required.iter().all(|name| tunnel.handshake.services.contains_key(*name)) { return Err(SERVICES); }
+        submitted.store(false, Ordering::Release);
+        return Ok(true);
+    }
     let mut existing_mounter = None;
-    let (major, ecid) = if has_mounter {
-        let (mut client, major, ecid) = mounter(tunnel).await?;
+    let (_product_version, major, ecid) = if has_mounter {
+        let (mut client, version, major, ecid) = mounter(tunnel).await?;
         if !client.copy_devices().await.map_err(|_| MOUNT)?.is_empty() {
             return Err(ALREADY_PRESENT);
         }
         existing_mounter = Some(client);
-        (major, ecid)
+        (version, major, ecid)
     } else { device_info(tunnel).await? };
-    let variant = choose(major, tunnel.handshake.services.get(CRYPTEX_SERVICE).and_then(|s| s.features.as_deref()));
+    let variant = choose_modern(major, features);
     if variant == Variant::Cryptex {
         if idevice::cryptexd::installed_ddi(&mut tunnel.adapter, &mut tunnel.handshake).await.map_err(|_| MOUNT)?.is_some() {
             return Err(ALREADY_PRESENT);
@@ -259,8 +356,6 @@ pub(crate) async fn ensure(
             let signature = match client.query_personalization_manifest("DeveloperDiskImage", Sha384::digest(&assets.image).to_vec()).await {
                 Ok(signature) => signature,
                 Err(_) => {
-                    // This request closes its service on a miss. Reconnect over
-                    // the SAME tunnel and do the documented lockdown query.
                     client = mounter(tunnel).await?.0;
                     client.get_manifest_from_tss(&assets.manifest, ecid).await.map_err(|_| PERSONALIZATION)?
                 }
@@ -286,8 +381,6 @@ pub(crate) async fn ensure(
             progress(Progress::stage("mounting", variant));
             let client = cryptex_client(tunnel).await?;
             submitted.store(true, Ordering::Release);
-            // This upstream routine has no byte-progress callback. Report the
-            // real indeterminate stage, not an invented percentage.
             client.install(CryptexInstallRequest::new(assets.image, assets.trustcache, ticket, assets.info, assets.volumehash, properties)).await.map_err(|_| MOUNT)?;
             if idevice::cryptexd::installed_ddi(&mut tunnel.adapter, &mut tunnel.handshake).await.map_err(|_| MOUNT)?.is_none() { return Err(MOUNT); }
         }
@@ -307,11 +400,12 @@ mod tests {
     #[test]
     fn selection_needs_version_and_capability() {
         let features = vec!["CryptexInstall".into()];
-        assert_eq!(choose(17, Some(&features)), Variant::Personalized);
-        assert_eq!(choose(26, Some(&features)), Variant::Personalized);
-        assert_eq!(choose(27, Some(&features)), Variant::Cryptex);
-        assert_eq!(choose(27, None), Variant::Personalized);
-        assert_eq!(choose(27, Some(&[])), Variant::Personalized);
+        assert_eq!(pick_route("16.6.1", Some(&features)).unwrap(), Route::Legacy { release: "16.6" });
+        assert_eq!(pick_route("17.0", Some(&features)).unwrap(), Route::Personalized);
+        assert_eq!(pick_route("26.4", Some(&features)).unwrap(), Route::Personalized);
+        assert_eq!(pick_route("27.0", Some(&features)).unwrap(), Route::Cryptex);
+        assert_eq!(pick_route("27.0", None).unwrap(), Route::Personalized);
+        assert_eq!(pick_route("27.0", Some(&[])).unwrap(), Route::Personalized);
         for value in ["", "15.9", "27.beta", "27.0.", "27.0.0.1", "100.0"] { assert!(major_version(value).is_none()); }
         assert_eq!(major_version("16.6"), Some(16));
         assert_eq!(major_version("26.4"), Some(26));
